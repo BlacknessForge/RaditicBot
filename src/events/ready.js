@@ -18,22 +18,22 @@ client.on("ready", async (client) => {
 
 
   if (!mongoURL) {
-    console.log(colors.magenta('Mongo Database • Disconnected'))
+    console.log(colors.magenta('Mongo Database â€¢ Disconnected'))
     console.log(colors.magenta('0===========================0'));
   } else {
     await mongoose.connect(mongoURL);
-    console.log(colors.magenta('Mongo Database • Connected'))
+    console.log(colors.magenta('Mongo Database â€¢ Connected'))
     console.log(colors.magenta('0===========================0'));
   };
   if (!client.slashCommands) {
-    console.log(colors.blue('Slash Commands • Not Registered'))
+    console.log(colors.blue('Slash Commands â€¢ Not Registered'))
     console.log(colors.blue('0===========================0'));
   } else {
-    console.log(colors.blue('Slash Commands • Registered'))
+    console.log(colors.blue('Slash Commands â€¢ Registered'))
     console.log(colors.blue('0===========================0'));
   }
   if (client) {
-    console.log(colors.red(`${client.user.tag} • Online`))
+    console.log(colors.red(`${client.user.tag} â€¢ Online`))
     console.log(colors.red('0===========================0'));
     } else {
       console.log(colors.red(`Client not found`));

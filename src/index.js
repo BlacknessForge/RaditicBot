@@ -1,6 +1,6 @@
 const { getPrefix, token, mongoURL, color } = require('./config.js');
 const fs = require('fs');
-const ms = require('pretty-ms');
+const ms = require('pretty-ms').default;
 const config = require('./config.js');
 require('dotenv').config();
 const express = require('express');
@@ -78,7 +78,7 @@ client.giveawayManager = new GiveawaysManager(client, {
 
         embedColorEnd: color.default,
 
-        reaction: `🎉`,
+        reaction: `ðŸŽ‰`,
 
     },
 
@@ -141,7 +141,7 @@ client.manager.on("playerStart", (player, track) => {
   // Create embed
   const embed = new EmbedBuilder()
     .setColor('#ffcc00') // You can change this to whatever color you like
-    .setTitle('🎶 Now Playing')
+    .setTitle('ðŸŽ¶ Now Playing')
     .setDescription(`**[${track.title}](${track.uri})**`)
     .addFields(
       { name: 'Duration', value: `\`${duration}\``, inline: true },
