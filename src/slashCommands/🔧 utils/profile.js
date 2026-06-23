@@ -4,6 +4,12 @@ const { Profile } = require('discord-arts');
 const imageCache = new Map();
 const CACHE_TIMEOUT = 120000;
 
+const currentDate = () => new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+});
+
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('profile')
@@ -45,6 +51,7 @@ module.exports = {
                 badgesFrame: true,
                 moreBackgroundBlur: true,
                 presenceStatus: status,
+                customDate: currentDate(),
             });
 
             imageCache.set(cacheKey, buffer);

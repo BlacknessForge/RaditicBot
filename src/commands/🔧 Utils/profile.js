@@ -1,9 +1,14 @@
 const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
-
 const { Profile } = require('discord-arts');
 
 const imageCache = new Map();
 const CACHE_TIMEOUT = 120000;
+
+const currentDate = () => new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+});
 
 module.exports = {
     usage: 'profile [@user]',
@@ -34,6 +39,7 @@ module.exports = {
                 badgesFrame: true,
                 moreBackgroundBlur: true,
                 presenceStatus: status,
+                customDate: currentDate(),
             });
 
             imageCache.set(cacheKey, buffer);
