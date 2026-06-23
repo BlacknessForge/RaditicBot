@@ -1,8 +1,8 @@
+require('dotenv').config();
 const { getPrefix, token, mongoURL, color } = require('./config.js');
 const fs = require('fs');
 const ms = require('pretty-ms').default;
 const config = require('./config.js');
-require('dotenv').config();
 const express = require('express');
 const { ActivityType, Collection, GatewayIntentBits, Client, Collector, VoiceChannel, EmbedBuilder, Partials } = require('discord.js');
 

@@ -17,6 +17,7 @@
     "ascii-table": "^0.0.9",
     "ascii-tables": "^0.0.1",
     "axios": "^1.12.2",
+    "canvacord": "^6.0.4",
     "colors": "^1.4.0",
     "cpu-stat": "^2.0.1",
     "discord-arts": "^0.7.1",
