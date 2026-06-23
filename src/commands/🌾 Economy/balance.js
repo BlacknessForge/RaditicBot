@@ -8,28 +8,32 @@ module.exports = {
   name: "balance",
   aliases: ["bal", "wallet"],
   description: "Check your account balance.",
-  async execute({msg}) {
-    const user = await User.findOne({ userId: msg.author.id });
+  async execute({ msg }) {
     try {
-      const bank = await Bank.findOne({ userId: msg.author.id });
+      // Fetch both documents in parallel to improve performance
+      const [user, bank] = await Promise.all([
+        User.findOne({ userId: msg.author.id }),
+        Bank.findOne({ userId: msg.author.id })
+      ]);
+
+      if (!user) {
+        return msg.reply("It seems like you have not registered an account yet. Use `register` command to create one.");
+      }
+
       const bankBalance = bank ? (bank.balance || 0) : 0;
 
-    if (!user) {
-      return msg.reply("It seems like you have not registered an account yet. Use `register` command to create one.");
-    } else {
-      
       const balanceEmbed = new EmbedBuilder()
-      .setAuthor({ name: `${msg.author.username}`, iconURL: msg.author.displayAvatarURL() })
-      .setTitle(`${msg.author.displayName}'s balance`)
-      .setDescription(`Balance: ${emoji.radigem} **${user.balance.toLocaleString()} RadiGem**\nBank: ${emoji.radigem} **${bankBalance.toLocaleString()} RadiGem**`)
-      .setColor(color.default)
-      .setTimestamp();
+        .setAuthor({ name: `${msg.author.username}`, iconURL: msg.author.displayAvatarURL() })
+        .setTitle(`${msg.author.displayName}'s balance`)
+        .setDescription(`Balance: ${emoji.radigem} **${user.balance.toLocaleString()} RadiGem**\nBank: ${emoji.radigem} **${bankBalance.toLocaleString()} RadiGem**`)
+        .setColor(color.default)
+        .setTimestamp();
 
       await msg.reply({ embeds: [balanceEmbed] });
-      }
+      
     } catch (error) {
-      console.error('Bank error', error);
-      msg.reply('An error occurred while checking your bank balance!');
+      console.error('Balance command error:', error);
+      msg.reply('An error occurred while checking your balance!');
     }
   },
 };
