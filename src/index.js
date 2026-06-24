@@ -20,23 +20,22 @@ client.slashCommands = new Collection();
 client.aliases = new Collection();
 client.messageTimestamps = new Map();
 client.snipes = new Map();
-client.messageTimestamps = new Map();
 client.cooldowns = new Map();
 
-        const commandFolders = fs.readdirSync('./src/commands');
-        for (const folder of commandFolders) {
-          const commandFiles = fs.readdirSync(`./src/commands/${folder}`).filter(file => file.endsWith('.js'));
-          for (const file of commandFiles) {
-            const command = require(`./commands/${folder}/${file}`);
+// Read directory using relative path from root container
+const commandFolders = fs.readdirSync('./src/commands');
+for (const folder of commandFolders) {
+  const commandFiles = fs.readdirSync(`./src/commands/${folder}`).filter(file => file.endsWith('.js'));
+  for (const file of commandFiles) {
+    const command = require(`./commands/${folder}/${file}`);
     command.category = folder;
     client.commands.set(command.name, command);
     if(!command.aliases) continue;
     for (const aliase of command.aliases) {
-      client.aliases.set(aliase, command.name)
+      client.aliases.set(aliase, command.name);
     }
-
   }
-};
+}
 
 const slashCommandFolders = fs.readdirSync('./src/slashCommands');
 for (const folder of slashCommandFolders) {
@@ -50,55 +49,39 @@ for (const folder of slashCommandFolders) {
   }
 }
 
-module.exports = client;
-// Load event handler files
 const eventFiles = fs.readdirSync('./src/events').filter(file => file.endsWith('.js'));
-
 for (const file of eventFiles) {
   require(`./events/${file}`);
-};
-
-// Load table files
-const tableFiles = fs.readdirSync('./src/tables').filter(file => file.endsWith('.js'));
-
-for (const file of tableFiles) {
- client.on("ready", require(`./tables/${file}`));
 }
 
-// Giveaway System index.js
+const tableFiles = fs.readdirSync('./src/tables').filter(file => file.endsWith('.js'));
+for (const file of tableFiles) {
+  client.on("ready", require(`./tables/${file}`));
+}
 
+// Giveaway System
 const GiveawaysManager = require('./giveaways');
 client.giveawayManager = new GiveawaysManager(client, {
-
     default: {
-
         botsCanWin: false,
-
         embedColor: color.default,
-
         embedColorEnd: color.default,
-
-        reaction: `ðŸŽ‰`,
-
+        reaction: `🎉`,
     },
-
 }); 
 
 const process = require('node:process');
-
 process.on('unhandledRejection', async (reason, promise) => {
     console.log('Unsupported rejection at:', promise, 'Reason:', reason);
 });
-
 process.on('uncaughtException', (err) => {
     console.log('Uncatchable exception:', err);
 });
-
 process.on("uncaughtExceptionMonitor", (err, origin) => {
     console.log('Monitor uncaught exceptions:', err, origin);
 });
 
-// Music
+// Music Configuration
 const { Connectors } = require('shoukaku');
 const { Kazagumo, Plugins } = require('kazagumo');
 
@@ -110,13 +93,24 @@ const Nodes = [{
 }];
 
 client.manager = new Kazagumo({
-  defaultSearchEngine: 'youtube',
+  defaultSearchEngine: 'youtube', // Maintained as YouTube for public deployment
   plugins: [new Plugins.PlayerMoved(client)],
   send: (guildId, payload) => {
     const guild = client.guilds.cache.get(guildId);
     if (guild) guild.shard.send(payload);
   },
 }, new Connectors.DiscordJS(client), Nodes);
+
+// BULLETPROOF VOICE TUNNEL (Stops raw loop packet crashes)
+client.on('raw', (packet) => {
+    if (client.manager?.shoukaku?.nodes) {
+        client.manager.shoukaku.nodes.forEach(node => {
+            if (node.state === 1) { 
+                node.emit('raw', packet);
+            }
+        });
+    }
+});
 
 client.manager.shoukaku.on('ready', (name) => console.log(`Lavalink ${name}: Ready!`));
 client.manager.shoukaku.on('error', (name, error) => console.error(`Lavalink ${name}: Error Caught,`, error));
@@ -132,16 +126,12 @@ client.manager.shoukaku.on('disconnect', (name, count) => {
 });
 
 client.manager.on("playerStart", (player, track) => {
-  // Format song duration in mm:ss format
   const duration = ms(track.length, { colonNotation: true });
-  const loopMode = player.data.get('loop') || 'None'; // Get current loop mode
-  // Fetch current player volume (default if not set is 40)
   const currentVolume = player.volume || 40;
 
-  // Create embed
   const embed = new EmbedBuilder()
-    .setColor('#ffcc00') // You can change this to whatever color you like
-    .setTitle('ðŸŽ¶ Now Playing')
+    .setColor('#ffcc00') 
+    .setTitle('🎵 Now Playing')
     .setDescription(`**[${track.title}](${track.uri})**`)
     .addFields(
       { name: 'Duration', value: `\`${duration}\``, inline: true },
@@ -149,11 +139,10 @@ client.manager.on("playerStart", (player, track) => {
       { name: 'Author', value: `${track.author}`, inline: true },
       { name: 'Requested By', value: `${track.requester}`, inline: true }
     )
-    .setThumbnail(track.thumbnail) // Set track thumbnail (if available)
+    .setThumbnail(track.thumbnail) 
     .setFooter({ text: `Requested by ${track.requester.tag}`, iconURL: track.requester.displayAvatarURL() })
     .setTimestamp();
 
-  // Send the embed message
   client.channels.cache.get(player.textId)?.send({ embeds: [embed] })
     .then(x => player.data.set("message", x));
 });
@@ -168,23 +157,20 @@ client.manager.on("playerEmpty", player => {
   player.destroy();
 });
 
-const Topgg = require('@top-gg/sdk'); // Ensure you're using topgg SDK
+const Topgg = require('@top-gg/sdk'); 
 const app = express();
 
-// Initialize the webhook with your top.gg API token
-const webhook = new Topgg.Webhook(process.env.topggAPI); // Replace with actual environment variable or token
+const webhook = new Topgg.Webhook(process.env.topggAPI); 
 
 app.post('/dblwebhook', webhook.listener(async (vote) => {
   const user = await client.users.fetch(vote.user);
-  const channel = client.channels.cache.get('1288152244042334208'); // Your channel ID
+  const channel = client.channels.cache.get('1288152244042334208'); 
 
-  // Sends a message in the channel when a vote is received
   if (channel) {
     channel.send(`<@${vote.user}> has voted for me!`);
   }
 }));
 
-// Express listener on the port (ensure this matches your server setup)
 app.listen(3000, () => {
   console.log('Express server listening on port 3000');
 });
