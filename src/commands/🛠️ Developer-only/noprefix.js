@@ -4,7 +4,7 @@ const { mainOwnerId, color } = require('../../config');
 
 module.exports = {
   name: 'noprefix',
-  aliases: ['np', 'no-prefix'],
+  aliases: ['npx', 'no-prefix'],
   description: 'Manage no prefix users',
   async execute({ msg, args }) {
     if (msg.author.id !== mainOwnerId) return;
