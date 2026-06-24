@@ -53,7 +53,7 @@ module.exports = {
       // Maintain signature window
       const collector = termsMessage.createMessageComponentCollector({
         filter,
-        time: 20000, // Boosted to 20s to allow adequate reading time
+        time: 80000, // Boosted to 20s to allow adequate reading time
       });
 
       collector.on('collect', async (i) => {
