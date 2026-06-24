@@ -1,4 +1,4 @@
-const { PermissionsBitField } = require('discord.js');
+const { EmbedBuilder } = require('discord.js');
 
 module.exports = {
   usage: 'skip',
@@ -6,18 +6,30 @@ module.exports = {
   aliases: ['s'],
   description: 'Skips the currently playing song.',
   async execute({ msg, client }) {
-    const {channel} = msg.member.voice;
-    if (!channel || msg.member.voice.channel !== msg.guild.members.me.voice.channel) {
-      return msg.reply('❌ | You need to be in the same voice channel as the bot to skip the song.');
+    const { channel } = msg.member.voice;
+    const player = client.manager.players.get(msg.guild.id);
+
+    if (!channel || msg.member.voice.channel.id !== msg.guild.members.me.voice.channel?.id) {
+      return msg.reply({ embeds: [new EmbedBuilder().setColor('#ff0000').setDescription('❌ | You need to be in the same voice channel as me to skip!')] });
     }
 
-    if (!channel.permissionsFor(msg.guild.members.me).has([PermissionsBitField.Flags.Connect, PermissionsBitField.Flags.Speak])) {
-      return msg.reply("I don't have permission to join or speak in your voice channel!");
-    } 
+    if (!player || !player.queue.current) {
+      return msg.reply({ embeds: [new EmbedBuilder().setColor('#ffcc00').setDescription('⚠️ | There is no music playing right now.')] });
+    }
 
-    let player = client.manager.players.get(msg.guild.id);
-    if (!player) return msg.reply("No player found!");
-    await player.skip();
-    return msg.reply({content: `Skipped to **[${player.queue[0]?.title}]**`});
+    const currentTrack = player.queue.current.title;
+    player.skip();
+
+    const embed = new EmbedBuilder()
+      .setColor('#00ff00')
+      .setDescription(`⏭️ | Skipped **${currentTrack}**`);
+
+    if (player.queue.length > 0) {
+      embed.setFooter({ text: `Next up: ${player.queue[0].title}` });
+    } else {
+      embed.setFooter({ text: 'The queue is now empty.' });
+    }
+
+    return msg.reply({ embeds: [embed] });
   },
 };
