@@ -1,6 +1,6 @@
 const Volume = require('../../Schemas/volumeSchema');
 const { EmbedBuilder } = require('discord.js');
-const { color } = require('../../config');
+const { color } = require('../../config'); // Keep your config if you have one
 
 module.exports = {
   name: 'volume',
@@ -9,55 +9,54 @@ module.exports = {
   usage: 'volume [1-200]',
   async execute({ msg, args, client }) {
     const { channel } = msg.member.voice;
-    if (!channel || msg.member.voice.channel !== msg.guild.members.me.voice.channel) {
-      return msg.reply('❌ | You need to be in the same voice channel as the bot to change the volume.');
-    }
-
     const player = client.manager.players.get(msg.guild.id);
-    if (!player) return msg.reply("No active player in this server.");
 
-    if (player.voiceId !== channel.id) {
-      return msg.reply("You need to be in the same voice channel as the bot to change the volume!");
+    if (!channel || msg.member.voice.channel.id !== msg.guild.members.me.voice.channel?.id) {
+      return msg.reply({ embeds: [new EmbedBuilder().setColor('#ff0000').setDescription('❌ | You need to be in the same voice channel as me!')] });
     }
+
+    if (!player) return msg.reply({ embeds: [new EmbedBuilder().setColor('#ffcc00').setDescription('⚠️ | No active player in this server.')] });
 
     const volume = parseInt(args[0]);
+
     if (isNaN(volume)) {
-      // Fetch current volume from database or return player's volume if no volume in the database
       const savedVolume = await Volume.findOne({ guildId: msg.guild.id });
-      const currentVolume = savedVolume ? savedVolume.volume : 50; // Default to 50 if no volume is set
-      return msg.reply(`The current volume is set to \`${currentVolume}\`.`);
+      const currentVolume = savedVolume ? savedVolume.volume : 50;
+      return msg.reply({ embeds: [
+          new EmbedBuilder().setColor('#5865F2').setDescription(`🔊 **Current Volume:** \`${currentVolume}%\`\n${generateVolumeBar(currentVolume)}`)
+      ]});
     }
 
     if (volume < 1 || volume > 200) {
-      return msg.reply("Please provide a valid volume level between 1 and 200.");
+      return msg.reply({ embeds: [new EmbedBuilder().setColor('#ffcc00').setDescription('⚠️ | Please provide a valid volume level between **1 and 200**.')] });
     }
 
-    // Set player volume
     player.setVolume(volume);
 
-    // Save the new volume to the database
+    // Update DB
     await Volume.findOneAndUpdate(
       { guildId: msg.guild.id },
       { volume: volume },
       { upsert: true, new: true }
     );
 
-    // Embed for volume confirmation
-    let volumeMessage = `🔊 The volume has been set to \`${volume}\`%.`;
-    let embedColor = color.default;
-
-    if (volume > 100) {
-      volumeMessage += "\n\n```⚠️ High volume may cause distortion!```";
-      embedColor = 0xffcc00; // Yellow warning color
-    }
+    let embedColor = volume > 100 ? '#ffaa00' : (color?.default || '#00ff00');
+    let warning = volume > 100 ? '\n\n*⚠️ Warning: High volume may cause distortion!*' : '';
 
     const embed = new EmbedBuilder()
       .setColor(embedColor)
-      .setTitle('Volume Updated')
-      .setDescription(volumeMessage)
-      .setFooter({ text: 'Use the command again to change the volume.' })
+      .setDescription(`🔊 **Volume changed to:** \`${volume}%\`${warning}\n\n${generateVolumeBar(volume)}`)
       .setTimestamp();
 
     return msg.reply({ embeds: [embed] });
   }
 };
+
+// Helper function to create a visual volume bar
+function generateVolumeBar(volume) {
+  const totalBars = 15;
+  const scaledVolume = Math.min(volume, 100); // Scale up to 100 for the visual block
+  const filledBars = Math.round((scaledVolume / 100) * totalBars);
+  const emptyBars = totalBars - filledBars;
+  return `[${'█'.repeat(filledBars)}${'░'.repeat(emptyBars)}]`;
+}
