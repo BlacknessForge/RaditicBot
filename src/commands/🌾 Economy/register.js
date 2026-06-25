@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const User = require('../../Schemas/userAccount.js');
 const { emoji } = require('../../config');
 
@@ -6,15 +6,18 @@ module.exports = {
   usage: "register",
   name: "register",
   description: "Initialize your profile and accept terms to enter the economy.",
-  async execute({ msg }) {
+  async execute({ msg, args, prefix }) {
     try {
-      const existingUser = await User.findOne({ userId: msg.author.id });
+      // 1. Fail-fast check using a lightweight lean query to save memory/DB overhead
+      const existingUser = await User.findOne({ userId: msg.author.id }).lean();
 
       if (existingUser) {
         return msg.reply("❌ **Registration Duplicate** | You already have an active profile registered in our systems ledger.");
       }
 
       const reward = 1000;
+      // Safeguard fallback to your bot's true prefix "r." if not explicitly passed down
+      const currentPrefix = prefix || "r."; 
       
       // Premium, structural layout for the Terms of Service
       const termsEmbed = new EmbedBuilder()
@@ -50,17 +53,22 @@ module.exports = {
 
       const filter = (i) => i.customId === "accept_terms" && i.user.id === msg.author.id;
 
-      // Maintain signature window
+      // Maintain signature window (Explicitly set to 80 seconds)
       const collector = termsMessage.createMessageComponentCollector({
         filter,
-        time: 80000, // Boosted to 20s to allow adequate reading time
+        componentType: ComponentType.Button, // Performance optimization: explicitly filter button interaction types
+        time: 80000, 
       });
 
       collector.on('collect', async (i) => {
-        // Remove interactive components immediately upon selection
-        await i.update({
-          components: [],
-        });
+        // Acknowledge interaction right away to prevent Discord API timeouts
+        await i.deferUpdate();
+
+        // Secondary defense check to prevent race-condition button spam duplicates
+        const raceConditionCheck = await User.findOne({ userId: i.user.id }).lean();
+        if (raceConditionCheck) {
+          return i.followUp({ content: "❌ You have already been registered in the database.", ephemeral: true });
+        }
 
         // Initialize user schema structure
         const newUser = new User({
@@ -70,6 +78,41 @@ module.exports = {
         });
 
         await newUser.save();
+
+        const successEmbed = new EmbedBuilder()
+          .setColor('#2ECC71') // Green success accent
+          .setAuthor({ name: 'Profile Initialized Successfully', iconURL: i.user.displayAvatarURL({ dynamic: true }) })
+          .setDescription(`## 🎉 Welcome to the Raditic Network!\n\nYour profile has been created. A starting initialization stipend has been deposited straight into your wallet ledger.\n\n**Stipend Granted:** \`+${reward.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n**Current Balance:** \`${reward.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n\nRun commands like \`${currentPrefix}daily\` or \`${currentPrefix}coinflip\` to manage your assets!`)
+          .setTimestamp();
+
+        // Edit original message to drop the button component smoothly
+        await termsMessage.edit({ components: [] }).catch(() => {});
+        
+        // Return confirmation
+        await i.followUp({ embeds: [successEmbed] });
+        collector.stop();
+      });
+
+      collector.on('end', async (collected, reason) => {
+        // Only run if the collector stopped naturally via the 80s expiration timer
+        if (reason === 'time') {
+          const timeoutEmbed = new EmbedBuilder()
+            .setColor('#E74C3C') // Red warning accent
+            .setDescription(`🛑 **Registration Expired** | You did not accept the Terms of Service within the required signature window. Please re-run the \`${currentPrefix}register\` command if you wish to initialize your account.`);
+
+          await termsMessage.edit({
+            embeds: [timeoutEmbed],
+            components: [],
+          }).catch(() => {});
+        }
+      });
+
+    } catch (err) {
+      console.error("Error occurred within the register pipeline:", err);
+      msg.reply("❌ An internal infrastructure error occurred while trying to instantiate your data entry.");
+    }
+  },
+};
 
         const successEmbed = new EmbedBuilder()
           .setColor('#2ECC71') // Green success accent
