@@ -15,11 +15,6 @@ const client = new Client({
 
 module.exports = client;
 
-// --- CONNECT TO DATABASE FIRST ---
-mongoose.connect(mongoURL)
-  .then(() => console.log('Mongo Database • Connected'))
-  .catch(err => console.error('Mongo Database • Connection Failed:', err));
-
 client.commands = new Collection();
 client.slashCommands = new Collection();
 client.aliases = new Collection();
@@ -64,17 +59,6 @@ const tableFiles = fs.readdirSync('./src/tables').filter(file => file.endsWith('
 for (const file of tableFiles) {
   client.on("ready", require(`./tables/${file}`));
 }
-
-// Initialize Giveaway System AFTER DB Connection
-const GiveawaysManager = require('./giveaways');
-client.giveawayManager = new GiveawaysManager(client, {
-    default: {
-        botsCanWin: false,
-        embedColor: color.default,
-        embedColorEnd: color.default,
-        reaction: `🎉`,
-    },
-}); 
 
 const process = require('node:process');
 process.on('unhandledRejection', async (reason, promise) => {
