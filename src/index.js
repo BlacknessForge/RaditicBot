@@ -1,12 +1,12 @@
 require('dotenv').config();
-const { getPrefix, token, mongoURL, color } = require('./config.js');
+const { getPrefix, token, mongoURL, color, lavalink_url, lavalink_auth } = require('./config.js');
 const fs = require('fs');
 const ms = require('pretty-ms').default;
 const config = require('./config.js');
 const express = require('express');
-const { ActivityType, Collection, GatewayIntentBits, Client, Collector, VoiceChannel, EmbedBuilder, Partials } = require('discord.js');
+const mongoose = require('mongoose'); // Added mongoose
+const { ActivityType, Collection, GatewayIntentBits, Client, EmbedBuilder, Partials } = require('discord.js');
 
-const Discord = require('discord.js');
 const client = new Client({
   intents: Object.keys(GatewayIntentBits).map(intent => intent),
   partials: Object.keys(Partials).map(partial => partial),
@@ -15,6 +15,11 @@ const client = new Client({
 
 module.exports = client;
 
+// --- CONNECT TO DATABASE FIRST ---
+mongoose.connect(mongoURL)
+  .then(() => console.log('Mongo Database • Connected'))
+  .catch(err => console.error('Mongo Database • Connection Failed:', err));
+
 client.commands = new Collection();
 client.slashCommands = new Collection();
 client.aliases = new Collection();
@@ -22,7 +27,7 @@ client.messageTimestamps = new Map();
 client.snipes = new Map();
 client.cooldowns = new Map();
 
-// Read directory using relative path from root container
+// Load Commands/Slash/Events/Tables
 const commandFolders = fs.readdirSync('./src/commands');
 for (const folder of commandFolders) {
   const commandFiles = fs.readdirSync(`./src/commands/${folder}`).filter(file => file.endsWith('.js'));
@@ -30,9 +35,10 @@ for (const folder of commandFolders) {
     const command = require(`./commands/${folder}/${file}`);
     command.category = folder;
     client.commands.set(command.name, command);
-    if(!command.aliases) continue;
-    for (const aliase of command.aliases) {
-      client.aliases.set(aliase, command.name);
+    if(command.aliases) {
+      for (const aliase of command.aliases) {
+        client.aliases.set(aliase, command.name);
+      }
     }
   }
 }
@@ -59,7 +65,7 @@ for (const file of tableFiles) {
   client.on("ready", require(`./tables/${file}`));
 }
 
-// Giveaway System
+// Initialize Giveaway System AFTER DB Connection
 const GiveawaysManager = require('./giveaways');
 client.giveawayManager = new GiveawaysManager(client, {
     default: {
