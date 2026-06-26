@@ -35,4 +35,7 @@ node index.js
 
 ## 🛡️ Privacy & Terms
 
-Raditic Bot is committed to transparency. Our official privacy guidelines and data management specifications are publicly maintained via our [official GitHub Gist Document](https://gist.github.com/BlacknessForge/035147b87146031330ebf71b08cbd1fd).
+Raditic Bot is committed to transparency. You can review our official policies below:
+
+* [**Privacy Policy**](https://gist.github.com/BlacknessForge/035147b87146031330ebf71b08cbd1fd)
+* [**Terms of Service**](https://gist.github.com/BlacknessForge/bbfcf0ec02937e665e1c6e079f669b62)
