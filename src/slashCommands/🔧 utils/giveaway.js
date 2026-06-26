@@ -1,5 +1,5 @@
 const { SlashCommandBuilder, PermissionsBitField, ChannelType } = require('discord.js');
-const { color } = require('../../config');
+const { color } = require('../../config'); // Adjust path to config depending on this file's depth
 
 function parseDuration(durationStr) {
   const regex = /(\d+)\s*(second|seconds|s|minute|minutes|m|hour|hours|h|day|days|d)/gi;
@@ -131,7 +131,8 @@ module.exports = {
         const duration = parseDuration(durationString);
 
         if (!duration || duration <= 0) {
-          return await interaction.reply({ content: 'Please provide a valid duration format (e.g., "1m12s", "1 minute 12 seconds").', ephemeral: true });
+          // FIXED: Used editReply instead of reply to prevent API crash
+          return await interaction.editReply({ content: 'Please provide a valid duration format (e.g., "1m12s", "1 minute 12 seconds").' });
         }
 
         const winnerCount = interaction.options.getInteger('winners');
@@ -166,7 +167,8 @@ module.exports = {
           }
         });
 
-        await interaction.editReply({ content: `Your giveaway has been started in ${showChannel}.`, ephemeral: true });
+        await interaction.editReply({ content: `Your giveaway has been started in ${showChannel}.` });
+        
       } else if (subcommand === 'edit') {
         await interaction.reply({ content: 'Editing your giveaway...', ephemeral: true });
 
@@ -175,7 +177,8 @@ module.exports = {
         const duration = parseDuration(newDurationString);
 
         if (!duration || duration <= 0) {
-          return await interaction.reply({ content: 'Please provide a valid duration format (e.g., "1m12s", "1 minute 12 seconds").', ephemeral: true });
+          // FIXED: Used editReply instead of reply to prevent API crash
+          return await interaction.editReply({ content: 'Please provide a valid duration format (e.g., "1m12s", "1 minute 12 seconds").' });
         }
 
         const newWinners = interaction.options.getInteger('winners');
@@ -187,14 +190,16 @@ module.exports = {
           newPrize: newPrize,
         });
 
-        await interaction.editReply({ content: 'Your giveaway has been edited.', ephemeral: true });
+        await interaction.editReply({ content: 'Your giveaway has been edited.' });
+        
       } else if (subcommand === 'end') {
         await interaction.reply({ content: 'Ending your giveaway...', ephemeral: true });
 
         const endMessageId = interaction.options.getString('message-id');
         await client.giveawayManager.end(endMessageId);
 
-        await interaction.editReply({ content: 'Your giveaway has been ended.', ephemeral: true });
+        await interaction.editReply({ content: 'Your giveaway has been ended.' });
+        
       } else if (subcommand === 'reroll') {
         await interaction.reply({ content: 'Rerolling your giveaway...', ephemeral: true });
 
@@ -202,7 +207,7 @@ module.exports = {
         const giveaway = client.giveawayManager.giveaways.find(g => g.guildId === interaction.guildId && (g.messageId === rerollMessageId));
 
         if (!giveaway) {
-          return await interaction.editReply({ content: 'I could not find any giveaway with the message ID.', ephemeral: true });
+          return await interaction.editReply({ content: 'I could not find any giveaway with the message ID.' });
         }
 
         await client.giveawayManager.reroll(rerollMessageId, {
@@ -212,11 +217,17 @@ module.exports = {
           }
         });
 
-        await interaction.editReply({ content: 'Your giveaway has been rerolled.', ephemeral: true });
+        await interaction.editReply({ content: 'Your giveaway has been rerolled.' });
       }
     } catch (error) {
       console.error(error);
-      await interaction.editReply({ content: 'An error occurred while executing the command.', ephemeral: true });
+      
+      // Safety check in case the interaction was deferred or replied to before failing
+      if (interaction.replied || interaction.deferred) {
+        await interaction.editReply({ content: 'An error occurred while executing the command.' });
+      } else {
+        await interaction.reply({ content: 'An error occurred while executing the command.', ephemeral: true });
+      }
     }
   },
 };
