@@ -128,3 +128,6 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# ignores Developer Only commands folder
+src/commands/🛠️Developer-only/
