@@ -80,7 +80,7 @@ module.exports = {
         await newUser.save();
 
         const successEmbed = new EmbedBuilder()
-          .setColor('#2ECC71') // Green success accent
+          .setColor('#ffffff') // Clean high-contrast white to fit your black/white theme elements
           .setAuthor({ name: 'Profile Initialized Successfully', iconURL: i.user.displayAvatarURL({ dynamic: true }) })
           .setDescription(`## 🎉 Welcome to the Raditic Network!\n\nYour profile has been created. A starting initialization stipend has been deposited straight into your wallet ledger.\n\n**Stipend Granted:** \`+${reward.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n**Current Balance:** \`${reward.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n\nRun commands like \`${currentPrefix}daily\` or \`${currentPrefix}coinflip\` to manage your assets!`)
           .setTimestamp();
@@ -97,38 +97,8 @@ module.exports = {
         // Only run if the collector stopped naturally via the 80s expiration timer
         if (reason === 'time') {
           const timeoutEmbed = new EmbedBuilder()
-            .setColor('#E74C3C') // Red warning accent
+            .setColor('#111111') // Consistent dark warning accent
             .setDescription(`🛑 **Registration Expired** | You did not accept the Terms of Service within the required signature window. Please re-run the \`${currentPrefix}register\` command if you wish to initialize your account.`);
-
-          await termsMessage.edit({
-            embeds: [timeoutEmbed],
-            components: [],
-          }).catch(() => {});
-        }
-      });
-
-    } catch (err) {
-      console.error("Error occurred within the register pipeline:", err);
-      msg.reply("❌ An internal infrastructure error occurred while trying to instantiate your data entry.");
-    }
-  },
-};
-
-        const successEmbed = new EmbedBuilder()
-          .setColor('#2ECC71') // Green success accent
-          .setAuthor({ name: 'Profile Initialized Successfully', iconURL: i.user.displayAvatarURL({ dynamic: true }) })
-          .setDescription(`## 🎉 Welcome to the Raditic Network!\n\nYour profile has been created. A starting initialization stipend has been deposited straight into your wallet ledger.\n\n**Stipend Granted:** \`+${reward.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n**Current Balance:** \`${reward.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n\nRun prefix commands like \`cp daily\` or \`cp coinflip\` to manage your assets!`)
-          .setTimestamp();
-
-        await i.followUp({ embeds: [successEmbed] });
-        collector.stop();
-      });
-
-      collector.on('end', async (collected, reason) => {
-        if (reason === 'time') {
-          const timeoutEmbed = new EmbedBuilder()
-            .setColor('#E74C3C') // Red warning accent
-            .setDescription(`🛑 **Registration Expired** | You did not accept the Terms of Service within the required signature window. Please re-run the \`register\` command if you wish to initialize your account.`);
 
           await termsMessage.edit({
             embeds: [timeoutEmbed],
