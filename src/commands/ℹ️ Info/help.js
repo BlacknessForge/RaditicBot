@@ -1,4 +1,3 @@
-// commands/help.js
 const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require('discord.js');
 const { color, emoji, getPrefix } = require('../../config');
 
@@ -8,7 +7,6 @@ module.exports = {
   description: 'Shows list of available commands',
   async execute({ msg, client }) {
     const customEmojis = {
-      // all custom emojis to help embed
       "MiniGames": "1286947790957842452",
       "Economy": "1329065211940044820",
       "Moderation": "1286947195509276692",
@@ -19,35 +17,46 @@ module.exports = {
       "Music": "1289450507554914324"
     };
 
-    // Ensure fallback for DMs just in case msg.guild is null
     const prefix = msg.guild ? await getPrefix(msg.guild.id) : 'r.'; 
-    
     const commands = Array.from(client.commands.values());
-    const commandNames = [];
     const categories = [];
 
+    // Step 1: Dynamically extract and normalize category names from folders
     for (const command of commands) {
-      commandNames.push(`\`${command.name}\``);
+      if (!command.category) continue;
+      
+      // Ignore developer commands or staff-only folders if present
+      if (command.category.includes('developer-only') continue; // || command.category.includes('🛠️')) continue;
 
-      if (command.category.includes('🛠️ Developer-only')) continue;
-      
-      const name = command.category.split(' ')[1];
-      const guildEmoji = client.emojis.cache.get(customEmojis[name]);
-      
-      // FIXED: Renamed local 'emoji' to 'categoryEmoji' to prevent shadowing your config import
-      const categoryEmoji = (guildEmoji ? { name: guildEmoji.name, id: guildEmoji.id, animated: guildEmoji.animated } : false) || { name: command.category.split(' ')[0] } || { name: '❔' };
-      
-      if (categories.find(category => category.name === name)) continue;
-      categories.push({ name, emoji: categoryEmoji });
+      // Cleanly separate emoji and clean category name
+      const parts = command.category.trim().split(/\s+/);
+      const cleanName = parts.length > 1 ? parts.slice(1).join(' ') : parts[0];
+      const folderEmoji = parts.length > 1 ? parts[0] : '📁';
+
+      if (!cleanName) continue;
+
+      // Check if custom Guild Emoji exists in config mapping
+      const guildEmoji = client.emojis.cache.get(customEmojis[cleanName]);
+      const categoryEmoji = (guildEmoji ? { name: guildEmoji.name, id: guildEmoji.id, animated: guildEmoji.animated } : false) 
+        || { name: folderEmoji };
+
+      if (!categories.find(cat => cat.name === cleanName)) {
+        categories.push({
+          rawCategory: command.category,
+          name: cleanName,
+          emoji: categoryEmoji
+        });
+      }
     }
 
+    // Step 2: Build Category Embeds dynamically
     const embeds = [];
     for (const category of categories) {
-      const commandsInCategory = commands.filter(command => command.category.split(' ')[1] === category.name);
+      const commandsInCategory = commands.filter(cmd => cmd.category === category.rawCategory);
       
-      const commandList = commandsInCategory.map(command => ({ 
-        name: `${command.name} | \`${prefix}${command.usage}\``, 
-        value: command.description || 'No description', 
+      const commandList = commandsInCategory.map(cmd => ({ 
+        name: `${cmd.name} | \`${prefix}${cmd.usage || cmd.name}\``, 
+        value: cmd.description || 'No description provided.', 
         inline: false 
       }));
 
@@ -60,33 +69,36 @@ module.exports = {
           iconURL: msg.guild?.iconURL({ dynamic: true }) || client.user.displayAvatarURL()
         })
         .setFooter({ text: `Requested by ${msg.author.tag}`, iconURL: msg.author.displayAvatarURL({ dynamic: true }) })
-        // FIXED: Added slice(0, 25) to prevent Discord API crashes if a category exceeds 25 commands
         .addFields(commandList.slice(0, 25))
         .setTimestamp();
         
       embeds.push(categoryEmbed);
     }
 
+    // Step 3: Setup Homepage & Dropdown Menu Options
     const homepageEmoji = client.emojis.cache.get(customEmojis['homepage']);
     
-    const options = [{ 
-      label: 'HomePage', 
-      description: 'Back to HomePage', 
-      emoji: (homepageEmoji ? { name: homepageEmoji.name, id: homepageEmoji.id, animated: homepageEmoji.animated } : false) || { name: '🏠' }, 
-      value: 'homepage' 
-    }, ...categories.map(({ name, emoji }, index) => ({
-      label: name,
-      description: `Bot's ${name} commands`,
-      emoji,
-      value: `${index}`
-    }))];
+    const options = [
+      { 
+        label: 'HomePage', 
+        description: 'Back to HomePage', 
+        emoji: (homepageEmoji ? { name: homepageEmoji.name, id: homepageEmoji.id, animated: homepageEmoji.animated } : false) || { name: '🏠' }, 
+        value: 'homepage' 
+      }, 
+      ...categories.map(({ name, emoji }, index) => ({
+        label: String(name),
+        description: `View ${name} commands`,
+        emoji,
+        value: String(index)
+      }))
+    ];
 
     const row = new ActionRowBuilder()
       .addComponents(
         new StringSelectMenuBuilder()
           .setCustomId('helpCommand')
           .setPlaceholder('Select a category')
-          .addOptions(options.slice(0, 25)) // API Safety: Select menus max out at 25 options
+          .addOptions(options.slice(0, 25))
       );
 
     const helpEmbed = new EmbedBuilder()
@@ -102,8 +114,8 @@ module.exports = {
 
     const response = await msg.channel.send({ embeds: [helpEmbed], components: [row] });
     
+    // Step 4: Component Collector Handling
     try {
-      // Performance boost: explicitly telling the collector to only look at String Select Menus
       const collector = response.createMessageComponentCollector({ 
         componentType: ComponentType.StringSelect,
         time: 480000 
@@ -112,7 +124,6 @@ module.exports = {
       collector.on('collect', async i => {
         if (i.customId !== 'helpCommand') return;
         
-        // Ephemeral rejection for other users trying to click the dropdown
         if (i.user.id !== msg.author.id) {
           return i.reply({ content: `❌ That's not your help menu! Create one with \`${prefix}help\``, ephemeral: true });
         }
@@ -120,14 +131,13 @@ module.exports = {
         const value = i.values[0];
         
         if (value !== 'homepage') {
-          await i.update({ embeds: [embeds[value]], components: [row] });
+          await i.update({ embeds: [embeds[parseInt(value)]], components: [row] });
         } else {
           await i.update({ embeds: [helpEmbed], components: [row] });
         }
       });
       
       collector.on('end', async () => {
-        // FIXED: dynamic prefix, and added a .catch() check in case the user deleted the message before timeout
         await response.edit({ 
           content: `⏳ Help menu timed out. Try using \`${prefix}help\` again.`, 
           components: [] 
@@ -135,7 +145,7 @@ module.exports = {
       });
       
     } catch (error) {
-      console.error("Help Command Error: ", error);
+      console.error("Help Command Collector Error: ", error);
     }
   },
 };
