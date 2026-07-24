@@ -25,8 +25,8 @@ module.exports = {
     for (const command of commands) {
       if (!command.category) continue;
       
-      // Ignore developer commands or staff-only folders if present
-      if (command.category.toLowerCase().includes('developer-only')) continue; // || command.category.includes('🛠️')
+      // Ignore developer commands
+      if (command.category.toLowerCase().includes('developer-only')) continue;
 
       // Cleanly separate emoji and clean category name
       const parts = command.category.trim().split(/\s+/);
