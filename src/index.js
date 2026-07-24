@@ -4,12 +4,13 @@ const fs = require('fs');
 const ms = require('pretty-ms').default;
 const config = require('./config.js');
 const express = require('express');
-const mongoose = require('mongoose'); // Added mongoose
+const mongoose = require('mongoose');
 const { ActivityType, Collection, GatewayIntentBits, Client, EmbedBuilder, Partials } = require('discord.js');
 
+// Cleanly collect all valid numeric intent bitfields and partial enum values
 const client = new Client({
-  intents: Object.keys(GatewayIntentBits).map(intent => intent),
-  partials: Object.keys(Partials).map(partial => partial),
+  intents: Object.values(GatewayIntentBits).filter(val => typeof val === 'number'),
+  partials: Object.values(Partials).filter(val => typeof val === 'number'),
   allowedMentions: { repliedUser: false, parse: ['users'] }
 });
 
@@ -22,15 +23,22 @@ client.messageTimestamps = new Map();
 client.snipes = new Map();
 client.cooldowns = new Map();
 
-// Load Commands/Slash/Events/Tables
+// Connect to MongoDB Database
+if (mongoURL) {
+  mongoose.connect(mongoURL)
+    .then(() => console.log('Successfully connected to MongoDB Atlas!'))
+    .catch((err) => console.error('MongoDB Connection Error:', err));
+}
+
+// Load Prefix Commands (Points to ./src/commands/)
 const commandFolders = fs.readdirSync('./src/commands');
 for (const folder of commandFolders) {
   const commandFiles = fs.readdirSync(`./src/commands/${folder}`).filter(file => file.endsWith('.js'));
   for (const file of commandFiles) {
     const command = require(`./commands/${folder}/${file}`);
-    command.category = folder;
+    command.category = folder; // Assigns category directly from folder name
     client.commands.set(command.name, command);
-    if(command.aliases) {
+    if (command.aliases) {
       for (const aliase of command.aliases) {
         client.aliases.set(aliase, command.name);
       }
@@ -38,6 +46,7 @@ for (const folder of commandFolders) {
   }
 }
 
+// Load Slash Commands (Points to ./src/slashCommands/)
 const slashCommandFolders = fs.readdirSync('./src/slashCommands');
 for (const folder of slashCommandFolders) {
   const slashCommandFiles = fs.readdirSync(`./src/slashCommands/${folder}`).filter(file => file.endsWith('.js'));
@@ -50,28 +59,31 @@ for (const folder of slashCommandFolders) {
   }
 }
 
+// Load Events (Points to ./src/events/)
 const eventFiles = fs.readdirSync('./src/events').filter(file => file.endsWith('.js'));
 for (const file of eventFiles) {
   require(`./events/${file}`);
 }
 
+// Load Tables (Points to ./src/tables/)
 const tableFiles = fs.readdirSync('./src/tables').filter(file => file.endsWith('.js'));
 for (const file of tableFiles) {
   client.on("ready", require(`./tables/${file}`));
 }
 
+// Global Process Exception Safety Handlers
 const process = require('node:process');
 process.on('unhandledRejection', async (reason, promise) => {
-    console.log('Unsupported rejection at:', promise, 'Reason:', reason);
+    console.log('Unhandled Rejection at:', promise, 'Reason:', reason);
 });
 process.on('uncaughtException', (err) => {
-    console.log('Uncatchable exception:', err);
+    console.log('Uncaught Exception:', err);
 });
 process.on("uncaughtExceptionMonitor", (err, origin) => {
-    console.log('Monitor uncaught exceptions:', err, origin);
+    console.log('Monitor Uncaught Exception:', err, origin);
 });
 
-// Music Configuration
+// Lavalink / Kazagumo Music Setup
 const { Connectors } = require('shoukaku');
 const { Kazagumo, Plugins } = require('kazagumo');
 
@@ -83,7 +95,7 @@ const Nodes = [{
 }];
 
 client.manager = new Kazagumo({
-  defaultSearchEngine: 'youtube', // Maintained as YouTube for public deployment
+  defaultSearchEngine: 'youtube',
   plugins: [new Plugins.PlayerMoved(client)],
   send: (guildId, payload) => {
     const guild = client.guilds.cache.get(guildId);
@@ -91,7 +103,7 @@ client.manager = new Kazagumo({
   },
 }, new Connectors.DiscordJS(client), Nodes);
 
-// BULLETPROOF VOICE TUNNEL (Stops raw loop packet crashes)
+// Voice Packet Forwarding Listener
 client.on('raw', (packet) => {
     if (client.manager?.shoukaku?.nodes) {
         client.manager.shoukaku.nodes.forEach(node => {
@@ -138,15 +150,16 @@ client.manager.on("playerStart", (player, track) => {
 });
 
 client.manager.on("playerEnd", (player) => {
-  player.data.get("message")?.edit({content: `Finished playing`});
+  player.data.get("message")?.edit({content: `Finished playing`}).catch(() => {});
 });
 
 client.manager.on("playerEmpty", player => {
   client.channels.cache.get(player.textId)?.send({content: `Destroyed player due to inactivity.`})
-      .then(x => player.data.set("message", x));
+      .then(x => player.data.set("message", x)).catch(() => {});
   player.destroy();
 });
 
+// Top.gg Webhook Integration & Express App
 const Topgg = require('@top-gg/sdk'); 
 const app = express();
 
@@ -161,12 +174,12 @@ app.post('/dblwebhook', webhook.listener(async (vote) => {
   }
 }));
 
-app.listen(3000, () => {
-  console.log('Express server listening on port 3000');
-});
-
 app.get('/', (req, res) => {
   res.send('Online Yo Boy !');
+});
+
+app.listen(3000, () => {
+  console.log('Express web server listening on port 3000');
 });
 
 client.login(token);
