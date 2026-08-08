@@ -1,10 +1,11 @@
+
 const Cooldown = require('../../Schemas/CooldownCoinflip.js');
 const User = require('../../Schemas/userAccount.js');
 const { EmbedBuilder } = require('discord.js');
 const { emoji } = require('../../config.js');
 
 module.exports = {
-  usage: 'cp coinflip <amount> <heads/tails>',
+  usage: 'coinflip <amount> <heads/tails>',
   name: 'coinflip',
   aliases: ['cf'],
   description: 'Risk your coins on a high-stakes coin toss',
@@ -13,7 +14,7 @@ module.exports = {
       const existingUser = await User.findOne({ userId: msg.author.id });
 
       if (!existingUser) {
-        return msg.reply("❌ **Account Required** | It looks like you haven't registered a profile yet. Use the `register` command to initialize your account.");
+        return msg.reply("❌ **Account Required** | It looks like you haven't registered a profile yet. Use the registration command to initialize your account.");
       }
 
       // Cooldown check
@@ -28,15 +29,14 @@ module.exports = {
       }
 
       const timeout = 20000; // 20 seconds
-      const prefix = "cp"; // Adjusted local fallback if prefix variable isn't global
 
-      if (!args[0]) {
-        return msg.reply(`⚠️ **Invalid Parameters** | Correct Usage: \`${prefix} coinflip <amount> [heads/tails]\``);
+      if (!args[0] || !args[1]) {
+        return msg.reply('⚠️ **Invalid Parameters** | Correct Usage: `coinflip <amount> <heads/tails>`');
       }
 
       const user = msg.author;
       let amount = args[0].toLowerCase() === 'all' ? existingUser.balance : parseInt(args[0]);
-      const bet = args[1] && args[1].toLowerCase();
+      const bet = args[1].toLowerCase();
 
       // Enforce maximum bet cap
       amount = Math.min(amount, 250000);
@@ -50,13 +50,17 @@ module.exports = {
         return msg.reply(`❌ **Insufficient Funds** | You don't have enough ${emoji.radigem || '💎'} RG coins to back this stake.`);
       }
 
-      // Determine choices cleanly
+      // Determine prediction choice
       let userBet = 'heads';
-      if (bet === 't' || bet === 'tails') userBet = 'tails';
+      if (bet === 't' || bet === 'tails') {
+        userBet = 'tails';
+      } else if (bet !== 'h' && bet !== 'heads') {
+        return msg.reply('❌ **Invalid Choice** | Please choose either **heads** or **tails**.');
+      }
 
       // ─── INITIAL COIN FLIP STATE ───
       const flipEmbed = new EmbedBuilder()
-        .setColor('#111111') // High-contrast sleek dark mode tone
+        .setColor('#111111')
         .setAuthor({ name: `${user.displayName}'s Wager`, iconURL: user.displayAvatarURL({ dynamic: true }) })
         .setDescription(`\`🪙\` The coin is spinning in the air...\n\n**Stake:** \`${amount.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n**Prediction:** \`${userBet.toUpperCase()}\``)
         .setTimestamp();
@@ -97,15 +101,15 @@ module.exports = {
           .setTimestamp();
 
         if (userWon) {
-          finalEmbed.setColor('#2ECC71') // Clear clean green success accent
+          finalEmbed.setColor('#2ECC71')
             .setDescription(`## 🎉 Victory!\n\nThe coin settled on **${result.toUpperCase()}**.\nYour prediction was flawless!\n\n**Net Returns:** \`+${winnings.toLocaleString()}\` ${emoji.radigem || '💎'} RG`);
         } else {
-          finalEmbed.setColor('#E74C3C') // Bold distinct red failure accent
+          finalEmbed.setColor('#E74C3C')
             .setDescription(`## 🛑 Defeat\n\nThe coin settled on **${result.toUpperCase()}**.\nBetter luck on your next rotation.\n\n**Loss Penalty:** \`-${amount.toLocaleString()}\` ${emoji.radigem || '💎'} RG`);
         }
 
         await initialMessage.edit({ embeds: [finalEmbed] }).catch(() => {});
-      }, 4000);
+      }, 3500);
 
     } catch (error) {
       console.error('An error occurred while processing coinflip command:', error);
