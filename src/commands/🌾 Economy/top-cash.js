@@ -1,67 +1,126 @@
-const { EmbedBuilder } = require('discord.js');
-const User = require('../../Schemas/userAccount.js');
-const { emoji } = require('../../config');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } = require('discord.js');
 
-module.exports = {
-  usage: 'top-cash [limit]',
-  name: 'top-cash',
-  aliases: ['topcash', 'top-c', 'topc', 'lb', 'leaderboard'],
-  description: 'Display the elite global users ranked by active wallet balances.',
-  async execute({ msg, args }) {
-    try {
-      let limit = 5;
-      if (args[0]) {
-        limit = parseInt(args[0]);
-        if (isNaN(limit) || limit <= 0 || limit > 20) {
-          return msg.reply('❌ **Error** | Please provide a valid query limit between `1` and `20`.');
-        }
-      }
+// Helper to build the leaderboard embed
+async function createLeaderboardEmbed(client, db, guild, scope = 'global', page = 1, perPage = 10) {
+    let users = [];
 
-      // Fetch the top records efficiently
-      const topUsers = await User.find().sort({ balance: -1 }).limit(limit);
+    if (scope === 'guild') {
+        // Fetch all guild member IDs to filter
+        const members = await guild.members.fetch();
+        const memberIds = Array.from(members.keys());
+        users = await db.getTopUsersByIDs(memberIds); // DB query filtering by array of user IDs
+    } else {
+        users = await db.getTopUsers(100); // Fetch top 100 global users
+    }
 
-      if (topUsers.length === 0) {
-        return msg.reply('📭 **Database Empty** | No registered accounts were discovered in the central ledger.');
-      }
+    const totalPages = Math.ceil(users.length / perPage) || 1;
+    const currentPage = Math.max(1, Math.min(page, totalPages));
+    const start = (currentPage - 1) * perPage;
+    const pageUsers = users.slice(start, start + perPage);
 
-      // Find the author's dynamic rank matching your MongoDB structure
-      const authorData = await User.findOne({ userId: msg.author.id });
-      const authorRank = authorData ? await User.countDocuments({ balance: { $gt: authorData.balance } }) + 1 : 'N/A';
+    let description = pageUsers.length > 0 
+        ? pageUsers.map((u, index) => {
+            const rank = start + index + 1;
+            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `\`#${rank}\``;
+            return `${medal} <@${u.userId}> — 💎 **${u.balance.toLocaleString()}** RadiGems`;
+          }).join('\n')
+        : 'No records found for this leaderboard.';
 
-      // Rebuilt premium leaderboard card design
-      const leaderboardEmbed = new EmbedBuilder()
-        .setColor('#111111') // Premium high-contrast dark theme
-        .setAuthor({ name: 'Raditic Global Registry', iconURL: msg.client.user.displayAvatarURL() })
-        .setTitle(`🏆 Top ${topUsers.length} Wealthiest Network Profiles`)
-        .setDescription(`Your Personal Network Standing: **#${authorRank}**\n${'─'.repeat(32)}`)
+    const embed = new EmbedBuilder()
+        .setTitle(scope === 'guild' ? `🏆 Top Cash Leaderboard — ${guild.name}` : '🌐 Global Top Cash Leaderboard')
+        .setColor('#9D4EDD')
+        .setDescription(description)
+        .setFooter({ text: `Page ${currentPage} of ${totalPages} • Raditic Economy` })
         .setTimestamp();
 
-      // Optimize user resolution by executing fetches concurrently instead of blocking in a loop
-      const leaderboardLines = await Promise.all(
-        topUsers.map(async (entry, index) => {
-          try {
-            // Check cache first, fall back to API call safely
-            const user = msg.client.users.cache.get(entry.userId) || await msg.client.users.fetch(entry.userId);
-            const rankEmoji = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `\`#${index + 1}\``;
-            
-            return `${rankEmoji} **${user.username}**\n┗━ Balance: \`${entry.balance.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n`;
-          } catch {
-            return `\`#${index + 1}\` *Unknown Entity (${entry.userId})*\n┗━ Balance: \`${entry.balance.toLocaleString()}\` ${emoji.radigem || '💎'} RG\n`;
-          }
-        })
-      );
+    return { embed, totalPages, currentPage };
+}
 
-      leaderboardEmbed.addFields({
-        name: '👑 Financial Standings',
-        value: leaderboardLines.join('\n') || 'No records available.',
-        inline: false
-      });
+// Helper to build action rows with navigation and scope toggles
+function buildLeaderboardComponents(scope, page, totalPages) {
+    const navRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`lb_prev_${scope}_${page}`)
+            .setLabel('◀ Previous')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(page <= 1),
+        new ButtonBuilder()
+            .setCustomId(`lb_next_${scope}_${page}`)
+            .setLabel('Next ▶')
+            .setStyle(ButtonStyle.Primary)
+            .setDisabled(page >= totalPages),
+        new ButtonBuilder()
+            .setCustomId(`lb_toggle_${scope === 'global' ? 'guild' : 'global'}_1`)
+            .setLabel(scope === 'global' ? '📍 Server Leaderboard' : '🌐 Global Leaderboard')
+            .setStyle(ButtonStyle.Secondary)
+    );
 
-      return msg.reply({ embeds: [leaderboardEmbed] });
+    return [navRow];
+}
 
-    } catch (error) {
-      console.error('An error occurred while fetching top users:', error);
-      msg.reply('❌ An internal ledger error occurred while collecting the ranking payload.');
+module.exports = {
+    name: 'top-cash',
+    aliases: ['lb', 'leaderboard', 'topcash', 'baltop'],
+    description: 'View the wealthiest users globally or in this server!',
+    async execute(message, args, db) {
+        let scope = 'global';
+        let page = 1;
+
+        // Parse arguments (e.g., r.lb guild 2 or r.top-cash global)
+        if (args[0]) {
+            const firstArg = args[0].toLowerCase();
+            if (firstArg === 'guild' || firstArg === 'server' || firstArg === 'local') {
+                scope = 'guild';
+                if (args[1] && !isNaN(parseInt(args[1]))) page = parseInt(args[1]);
+            } else if (firstArg === 'global' || firstArg === 'all') {
+                scope = 'global';
+                if (args[1] && !isNaN(parseInt(args[1]))) page = parseInt(args[1]);
+            } else if (!isNaN(parseInt(firstArg))) {
+                page = parseInt(firstArg);
+            }
+        }
+
+        const { embed, totalPages, currentPage } = await createLeaderboardEmbed(message.client, db, message.guild, scope, page);
+        const components = buildLeaderboardComponents(scope, currentPage, totalPages);
+
+        const response = await message.reply({
+            embeds: [embed],
+            components: components
+        });
+
+        // Component collector for interactive buttons
+        const collector = response.createMessageComponentCollector({
+            time: 120000 // 2 minutes active timeout
+        });
+
+        collector.on('collect', async i => {
+            // Allow anyone to click navigation buttons
+            const [type, action, targetScope, targetPage] = i.customId.split('_');
+            let newPage = parseInt(targetPage);
+            let newScope = targetScope;
+
+            if (action === 'prev') newPage--;
+            if (action === 'next') newPage++;
+
+            const updatedData = await createLeaderboardEmbed(message.client, db, i.guild, newScope, newPage);
+            const updatedComponents = buildLeaderboardComponents(newScope, updatedData.currentPage, updatedData.totalPages);
+
+            await i.update({
+                embeds: [updatedData.embed],
+                components: updatedComponents
+            });
+        });
+
+        collector.on('end', async () => {
+            // Disable all buttons when collector expires
+            const disabledRows = response.components.map(row => {
+                const newRow = ActionRowBuilder.from(row);
+                newRow.components.forEach(button => button.setDisabled(true));
+                return newRow;
+            });
+
+            await response.edit({ components: disabledRows }).catch(() => {});
+        });
     }
-  },
 };
+                  
